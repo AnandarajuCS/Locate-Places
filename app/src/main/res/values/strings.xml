@@ -1,4 +1,11 @@
 <resources>
     <string name="app_name">Locate Places</string>
     <string name="title_activity_maps">Locate Places</string>
+    <string-array name="maptype_spinner">
+        <item>Normal</item>
+        <item>Satellite</item>
+        <item>Terrain</item>
+        <item>Hybrid</item>
+        <item>None</item>
+    </string-array>
 </resources>

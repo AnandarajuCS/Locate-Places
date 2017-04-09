@@ -1,6 +1,7 @@
 package anand.org.testapplication;
 
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
@@ -11,7 +12,10 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
+import android.widget.Spinner;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -24,9 +28,13 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polygon;
+import com.google.android.gms.maps.model.PolygonOptions;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class MapsActivity extends FragmentActivity implements
@@ -38,6 +46,10 @@ public class MapsActivity extends FragmentActivity implements
     private GoogleMap mMap;
     public GoogleApiClient mGoogleApiClient;
     public LocationRequest mLocationRequest;
+    public List<Marker> markerList = new ArrayList<Marker>();
+    public static int POLYGON_SIZE_COUNT = 5;
+    public Polygon polygon;
+    public Marker locationMarker;
 
     /* GPS Constant Permission */
     private static final int MY_PERMISSION_ACCESS_COARSE_LOCATION = 11;
@@ -62,12 +74,66 @@ public class MapsActivity extends FragmentActivity implements
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
                 .setInterval(1000 * 10)
                 .setFastestInterval(5 * 1000);
+
+        Spinner maptype_spinner = (Spinner) findViewById(R.id.maptype_spinner);
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
+                R.array.maptype_spinner, android.R.layout.simple_spinner_item);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        maptype_spinner.setAdapter(adapter);
+        maptype_spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> adapterView, View view, int pos, long id) {
+                String itemSelected = (String)adapterView.getItemAtPosition(pos);
+                switch (itemSelected.toLowerCase()){
+                    case "normal":
+                        mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
+                        break;
+                    case "satellite":
+                        mMap.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
+                        break;
+                    case "hybrid":
+                        mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
+                        break;
+                    case "terrain":
+                        mMap.setMapType(GoogleMap.MAP_TYPE_TERRAIN);
+                        break;
+                    case "none":
+                        mMap.setMapType(GoogleMap.MAP_TYPE_NONE);
+                        break;
+                    default:
+                        //Toast.makeText(super., "Unknown option selected !", Toast.LENGTH_SHORT).show();
+                        break;
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> adapterView) {
+
+            }
+        });
     }
 
-    private void goToLocation(double lat, double lng, String locality) {
+    private void goToLocation(double lat, double lng, String locality, String country) {
         if (mMap != null) {
+//            if(markerList.size() > 0){
+//                removeShape();
+//            }
+            if(locationMarker != null){
+                locationMarker.remove();
+                locationMarker = null;
+            }
             LatLng local = new LatLng(lat, lng);
-            mMap.addMarker(new MarkerOptions().position(local).title(locality));
+            MarkerOptions mOptions = new MarkerOptions()
+                    .position(local)
+                    .title(locality);
+                    //.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW));
+            if(country.length() > 0){
+                mOptions.snippet(country);
+            }
+            locationMarker = mMap.addMarker(mOptions);
+            // this method is to add a new marker icon
+            //currentMarker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.));
+            //currentMarker.showInfoWindow();
             mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(local, DEFAULT_ZOOM));
             //Toast.makeText(this, "Map is available", Toast.LENGTH_SHORT).show();
         } else {
@@ -120,6 +186,40 @@ public class MapsActivity extends FragmentActivity implements
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
+        mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener(){
+            @Override
+            public void onMapClick(LatLng latLng) {
+                MarkerOptions mOptions = new MarkerOptions().position(latLng);
+                if(markerList.size() == POLYGON_SIZE_COUNT){
+                    removeShape();
+                }
+                markerList.add(mMap.addMarker(mOptions));
+                if(markerList.size() == POLYGON_SIZE_COUNT){
+                    drawPolygon();
+                }
+            }
+        });
+    }
+
+    public void drawPolygon(){
+        PolygonOptions pOptions = new PolygonOptions()
+                .fillColor(0x330000FF)
+                .strokeColor(Color.BLUE)
+                .strokeWidth(3);
+        for(int i = 0; i < POLYGON_SIZE_COUNT; i++){
+            pOptions.add(markerList.get(i).getPosition());
+        }
+        polygon = mMap.addPolygon(pOptions);
+    }
+
+    public void removeShape(){
+        for(Marker marker : markerList) {
+            marker.remove();
+            marker = null;
+        }
+        markerList.clear();
+        polygon.remove();
+        polygon = null;
     }
 
     public void locateGeo(View v) throws IOException {
@@ -127,7 +227,7 @@ public class MapsActivity extends FragmentActivity implements
         EditText et = (EditText) findViewById(R.id.inputLoc);
         String location = et.getText().toString();
         if(location.length() == 0){
-            goToLocation(22, 77, "INDIA");
+            goToLocation(22, 77, "INDIA","");
             return;
         }
         Geocoder gc = new Geocoder(this);
@@ -135,7 +235,7 @@ public class MapsActivity extends FragmentActivity implements
         Address add = list.get(0);
         String locality = add.getLocality();
         Toast.makeText(this, locality, Toast.LENGTH_SHORT).show();
-        goToLocation(add.getLatitude(), add.getLongitude(), locality);
+        goToLocation(add.getLatitude(), add.getLongitude(), locality, add.getCountryName());
     }
 
     public void locateMe(View v) {
@@ -175,7 +275,7 @@ public class MapsActivity extends FragmentActivity implements
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            goToLocation(myLocation.getLatitude(), myLocation.getLongitude(), address.getLocality());
+            goToLocation(myLocation.getLatitude(), myLocation.getLongitude(), address.getLocality(), address.getCountryName());
 //            Toast.makeText(this, "Location IS available !!! ", Toast.LENGTH_SHORT).show();
 //            CameraUpdate update = CameraUpdateFactory.newLatLngZoom(new LatLng(myLocation.getLatitude(), myLocation.getLongitude()),5);
 //            mMap.animateCamera(update);
@@ -215,7 +315,7 @@ public class MapsActivity extends FragmentActivity implements
         } catch (IOException e) {
             e.printStackTrace();
         }
-        goToLocation(location.getLatitude(), location.getLongitude(),address.getLocality());
+        goToLocation(location.getLatitude(), location.getLongitude(),address.getLocality(), address.getCountryName());
     }
 
     @Override
